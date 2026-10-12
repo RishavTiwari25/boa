@@ -240,3 +240,74 @@ fn throw_before_start() {
         TestAction::assert_eq("r1.done", true),
     ]);
 }
+
+#[test]
+fn generator_return_closes_for_of_iterator() {
+    run_test_actions([
+        TestAction::run(indoc! {r#"
+            let returnCalled = 0;
+            const iter = {
+                [Symbol.iterator]() { return this; },
+                next() { return { value: 1, done: false }; },
+                return() { returnCalled++; return {}; },
+            };
+            function* gen() {
+                for (const x of iter) {
+                    yield x;
+                }
+            }
+            const g = gen();
+            g.next();
+            const result = g.return(42);
+        "#}),
+        TestAction::assert_eq("returnCalled", 1),
+        TestAction::assert_eq("result.value", 42),
+        TestAction::assert_eq("result.done", true),
+        // A `finally` block between the loop and the `yield` runs before the iterator is closed.
+        TestAction::run(indoc! {r#"
+            returnCalled = 0;
+            let log = [];
+            const iter2 = {
+                [Symbol.iterator]() { return this; },
+                next() { return { value: 1, done: false }; },
+                return() { log.push("return"); return {}; },
+            };
+            function* gen2() {
+                for (const x of iter2) {
+                    try {
+                        yield x;
+                    } finally {
+                        log.push("finally");
+                    }
+                }
+            }
+            const g2 = gen2();
+            g2.next();
+            g2.return();
+        "#}),
+        TestAction::assert_eq("log.join()", js_str!("finally,return")),
+        // Breaking out of a loop over the generator closes the inner iterator too, and an error
+        // thrown by its `return` method propagates.
+        TestAction::run(indoc! {r#"
+            const iter3 = {
+                [Symbol.iterator]() { return this; },
+                next() { return { value: 1, done: false }; },
+                return() { throw 42; },
+            };
+            function* gen3() {
+                for (const x of iter3) {
+                    yield x;
+                }
+            }
+            let thrown;
+            try {
+                for (const x of gen3()) {
+                    break;
+                }
+            } catch (e) {
+                thrown = e;
+            }
+        "#}),
+        TestAction::assert_eq("thrown", 42),
+    ]);
+}

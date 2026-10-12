@@ -421,8 +421,17 @@ impl ByteCompiler<'_> {
             let exit = self.jump();
             self.patch_handler(handler_index);
 
+            // The handler is also reached without a pending exception when a generator
+            // suspended inside the loop is closed with `return()`. The iterator must be
+            // closed in both cases, but a throw completion takes precedence over errors
+            // thrown by the iterator's `return` method, while a return completion does not.
+            let has_exception = self.register_allocator.alloc();
             let error = self.register_allocator.alloc();
-            self.bytecode.emit_exception(error.variable());
+            self.bytecode
+                .emit_maybe_exception(has_exception.variable(), error.variable());
+
+            let is_return = self.jump_if_false(&has_exception);
+            self.register_allocator.dealloc(has_exception);
 
             // NOTE: Capture throw of the iterator close and ignore it.
             let handler_index = self.push_handler();
@@ -431,6 +440,11 @@ impl ByteCompiler<'_> {
 
             self.bytecode.emit_throw(error.variable());
             self.register_allocator.dealloc(error);
+
+            self.patch_jump(is_return);
+            self.iterator_close(for_of_loop.r#await());
+            self.bytecode.emit_re_throw();
+
             self.patch_jump(exit);
         }
 
