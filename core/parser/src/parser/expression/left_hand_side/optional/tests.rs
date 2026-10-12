@@ -113,6 +113,13 @@ const a = console?.log
 }
 
 #[test]
+fn reject_new_expression_without_arguments() {
+    check_invalid_script("new o?.C()");
+    check_invalid_script("new o?.['C']()");
+    check_invalid_script("new C?.()");
+}
+
+#[test]
 fn private_identifier_early_error() {
     check_invalid_script("this?.#a");
     check_invalid_script("this.#a");

@@ -145,6 +145,16 @@ where
                             Arguments::new(self.allow_yield, self.allow_await)
                                 .parse(cursor, interner)?
                         }
+                        Some(next)
+                            if next.kind() == &TokenKind::Punctuator(Punctuator::Optional) =>
+                        {
+                            // `new MemberExpression` without arguments is a `NewExpression`,
+                            // which cannot be the start of an optional chain.
+                            return Err(Error::general(
+                                "invalid optional chain in `new` expression",
+                                next.span().start(),
+                            ));
+                        }
                         _ => (Box::default(), lhs_inner.span()),
                     };
                     let call_node = Call::new(
