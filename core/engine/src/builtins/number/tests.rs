@@ -35,6 +35,25 @@ fn to_exponential() {
             js_str!("NaN"),
         ),
         TestAction::assert_eq("Number('1.23e+2').toExponential()", js_str!("1.23e+2")),
+        TestAction::assert_eq("(0).toExponential(2)", js_str!("0.00e+0")),
+        TestAction::assert_eq("(123.456).toExponential(3)", js_str!("1.235e+2")),
+        TestAction::assert_eq(
+            "(123.456).toExponential(17)",
+            js_str!("1.23456000000000003e+2"),
+        ),
+        TestAction::assert_eq(
+            "(0.0001).toExponential(17)",
+            js_str!("1.00000000000000005e-4"),
+        ),
+        TestAction::assert_eq("(1e-200).toExponential(2)", js_str!("1.00e-200")),
+        // Ties must round away from zero, not to even.
+        TestAction::assert_eq("(25).toExponential(0)", js_str!("3e+1")),
+        TestAction::assert_eq("(-25).toExponential(0)", js_str!("-3e+1")),
+        TestAction::assert_eq("(12345).toExponential(3)", js_str!("1.235e+4")),
+        TestAction::assert_eq("(9.5).toExponential(0)", js_str!("1e+1")),
+        TestAction::assert_eq("(0.5).toExponential(0)", js_str!("5e-1")),
+        // 1.005 is really 1.00499999999999989..., so it is not a tie.
+        TestAction::assert_eq("(1.005).toExponential(2)", js_str!("1.00e+0")),
     ]);
 }
 
@@ -683,5 +702,9 @@ fn to_precision_edge_cases() {
         TestAction::assert_eq("(0).toPrecision(1)", js_str!("0")),
         TestAction::assert_eq("(1).toPrecision(1)", js_str!("1")),
         TestAction::assert_eq("(9).toPrecision(1)", js_str!("9")),
+        // Values below 1e-100 need more than 100 fraction digits to be represented.
+        TestAction::assert_eq("(1e-200).toPrecision(3)", js_str!("1.00e-200")),
+        TestAction::assert_eq("(5e-324).toPrecision(2)", js_str!("4.9e-324")),
+        TestAction::assert_eq("(1e300).toPrecision(2)", js_str!("1.0e+300")),
     ]);
 }

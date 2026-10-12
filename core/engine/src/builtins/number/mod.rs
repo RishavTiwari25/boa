@@ -339,30 +339,35 @@ impl Number {
         }
     }
 
-    /// `flt_str_to_exp` - used in `to_precision`
+    /// `exact_decimal_digits` - used in `to_precision` and `to_exponential`
     ///
-    /// This function traverses a string representing a number,
-    /// returning the floored log10 of this number.
-    fn flt_str_to_exp(flt: &str) -> i32 {
-        let mut non_zero_encountered = false;
-        let mut dot_encountered = false;
-        for (i, c) in flt.chars().enumerate() {
-            if c == '.' {
-                if non_zero_encountered {
-                    return (i as i32) - 1;
-                }
-                dot_encountered = true;
-            } else if c != '0' {
-                if dot_encountered {
-                    return 1 - (i as i32);
-                }
-                non_zero_encountered = true;
-            }
-        }
-        (flt.len() as i32) - 1
+    /// Returns the exact decimal expansion of a finite, non-negative `n` as a pair
+    /// `(digits, exponent)` with `n == d.ddd… × 10^exponent`, where `digits` holds
+    /// the significant digits without a decimal point.
+    ///
+    /// Both callers need to round the exact value of `n` (ties away from zero, as the
+    /// spec requires), which Rust's `{:e}` formatting can't do on its own since it rounds
+    /// ties to even. The digits are therefore requested in full and rounded afterwards
+    /// with `round_to_precision`.
+    fn exact_decimal_digits(n: f64) -> (String, i32) {
+        // The longest exact decimal expansion of an `f64` has 767 significant digits
+        // (a subnormal with a full mantissa), so this is enough for any value.
+        const FRACTION_DIGITS: usize = 766;
+
+        let formatted = format!("{n:.FRACTION_DIGITS$e}");
+        let (mantissa, exponent) = formatted
+            .split_once('e')
+            .expect("exponential format always contains an 'e'");
+
+        let digits = mantissa.chars().filter(char::is_ascii_digit).collect();
+        let exponent = exponent
+            .parse()
+            .expect("exponential format always has an integer exponent");
+
+        (digits, exponent)
     }
 
-    /// `round_to_precision` - used in `to_precision`
+    /// `round_to_precision` - used in `to_precision` and `to_exponential`
     ///
     /// This procedure has two roles:
     /// - If there are enough or more than enough digits in the
@@ -487,20 +492,10 @@ impl Number {
             exponent = 0;
         // 10
         } else {
-            // Due to f64 limitations, this part differs a bit from the spec,
-            // but has the same effect. It manipulates the string constructed
-            // by `format`: digits with an optional dot between two of them.
-            suffix = format!("{this_num:.100}");
-
-            // a: getting an exponent
-            exponent = Self::flt_str_to_exp(&suffix);
-            // b: getting relevant digits only
-            if exponent < 0 {
-                suffix = suffix.split_off((1 - exponent) as usize);
-            } else if let Some(n) = suffix.find('.') {
-                suffix.remove(n);
-            }
-            // impl: having exactly `precision` digits in `suffix`
+            // a, b: Let e and n be integers such that 10^(p - 1) ≤ n < 10^p and for which
+            // n × 10^(e - p + 1) - x is as close to zero as possible. If there are two such
+            // sets of e and n, pick the e and n for which n × 10^(e - p + 1) is larger.
+            (suffix, exponent) = Self::exact_decimal_digits(this_num);
             if Self::round_to_precision(&mut suffix, precision) {
                 exponent += 1;
             }
@@ -950,14 +945,30 @@ fn f64_to_exponential(n: f64) -> JsString {
 }
 
 /// Helper function that formats a float as a ES6-style exponential number string with a given precision.
-// We can't use the same approach as in `f64_to_exponential`
-// because in cases like (0.999).toExponential(0) the result will be 1e0.
-// Instead we get the index of 'e', and if the next character is not '-' we insert the plus sign
+///
+/// `n` must be finite. The digits are rounded with ties away from zero, as required by the
+/// spec (e.g. `(25).toExponential(0)` is `"3e+1"`, not `"2e+1"`).
 fn f64_to_exponential_with_precision(n: f64, prec: usize) -> JsString {
-    let mut res = format!("{n:.prec$e}");
-    let idx = res.find('e').expect("'e' not found in exponential string");
-    if res.as_bytes()[idx + 1] != b'-' {
-        res.insert(idx + 1, '+');
+    // Let e and n be integers such that 10^f ≤ n < 10^(f + 1) and for which n × 10^(e - f) - x
+    // is as close to zero as possible. If there are two such sets of e and n, pick the e and n
+    // for which n × 10^(e - f) is larger.
+    let (mut digits, mut exponent) = Number::exact_decimal_digits(n.abs());
+    if Number::round_to_precision(&mut digits, prec + 1) {
+        exponent += 1;
     }
+
+    let mut res = String::with_capacity(digits.len() + 8);
+    if n < 0.0 {
+        res.push('-');
+    }
+    res.push_str(&digits[..1]);
+    if prec > 0 {
+        res.push('.');
+        res.push_str(&digits[1..]);
+    }
+    res.push('e');
+    res.push(if exponent < 0 { '-' } else { '+' });
+    res.push_str(&exponent.abs().to_string());
+
     js_string!(res)
 }
