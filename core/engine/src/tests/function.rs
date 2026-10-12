@@ -351,3 +351,15 @@ fn function_constructor_nested_lexical_binding() {
         42,
     )]);
 }
+
+#[test]
+fn bound_function_construct_callee_is_target() {
+    run_test_actions([
+        TestAction::run(indoc! {r#"
+            function callee() { return arguments.callee; }
+            var bound = callee.bind();
+        "#}),
+        TestAction::assert("bound() === callee"),
+        TestAction::assert("new bound() === callee"),
+    ]);
+}
