@@ -200,3 +200,40 @@ fn eval_created_bindings_can_be_deleted_5333() {
         ),
     ]);
 }
+
+#[test]
+fn assignment_to_lexical_binding_in_tdz() {
+    const ERROR: &str = "access of uninitialized binding";
+    run_test_actions([
+        TestAction::assert_native_error(
+            "(function() { x = 1; let x; })()",
+            JsNativeErrorKind::Reference,
+            ERROR,
+        ),
+        TestAction::assert_native_error(
+            "(() => { x = 1; let x; })()",
+            JsNativeErrorKind::Reference,
+            ERROR,
+        ),
+        TestAction::assert_native_error(
+            "(() => { { x = 1; } let x; })()",
+            JsNativeErrorKind::Reference,
+            ERROR,
+        ),
+        TestAction::assert_native_error(
+            "(() => { [x] = [1]; let x; })()",
+            JsNativeErrorKind::Reference,
+            ERROR,
+        ),
+        TestAction::assert_native_error(
+            "(() => { x++; let x; })()",
+            JsNativeErrorKind::Reference,
+            ERROR,
+        ),
+        TestAction::assert_native_error(
+            "(() => { null?.[x]; x = 1; let x; })()",
+            JsNativeErrorKind::Reference,
+            ERROR,
+        ),
+    ]);
+}

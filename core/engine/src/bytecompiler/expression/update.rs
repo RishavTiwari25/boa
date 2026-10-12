@@ -103,7 +103,7 @@ impl ByteCompiler<'_> {
                 if is_lexical {
                     match compiler.lexical_scope.set_mutable_binding(name.clone()) {
                         Ok(binding) => {
-                            let index = compiler.insert_binding(binding);
+                            let index = compiler.get_binding(&binding);
                             compiler.emit_binding_access(
                                 BindingAccessOpcode::SetName,
                                 &index,

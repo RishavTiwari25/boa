@@ -867,7 +867,7 @@ impl<'ctx> ByteCompiler<'ctx> {
             }
             BindingOpcode::SetName => match self.lexical_scope.set_mutable_binding(name.clone()) {
                 Ok(binding) => {
-                    let index = self.insert_binding(binding);
+                    let index = self.get_binding(&binding);
                     self.emit_binding_access(BindingAccessOpcode::SetName, &index, value);
                 }
                 Err(BindingLocatorError::MutateImmutable) => {
@@ -1592,7 +1592,7 @@ impl<'ctx> ByteCompiler<'ctx> {
                 if is_lexical {
                     match self.lexical_scope.set_mutable_binding(name.clone()) {
                         Ok(binding) => {
-                            let index = self.insert_binding(binding);
+                            let index = self.get_binding(&binding);
                             self.emit_binding_access(BindingAccessOpcode::SetName, &index, value);
                         }
                         Err(BindingLocatorError::MutateImmutable) => {
