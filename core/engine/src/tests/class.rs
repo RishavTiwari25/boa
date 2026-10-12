@@ -1,4 +1,4 @@
-use crate::{TestAction, run_test_actions};
+use crate::{JsNativeErrorKind, TestAction, run_test_actions};
 use boa_macros::js_str;
 use indoc::indoc;
 
@@ -41,7 +41,7 @@ fn class_field_initializer_name() {
 fn class_superclass_from_regex_error() {
     run_test_actions([TestAction::assert_native_error(
         "class A extends /=/ {}",
-        crate::JsNativeErrorKind::Type,
+        JsNativeErrorKind::Type,
         "superclass must be a constructor",
     )]);
 }
@@ -199,5 +199,24 @@ fn class_boolean_literal_getter_setter_names() {
         "#}),
         TestAction::assert_eq("c.true", 42),
         TestAction::assert_eq("c.false", 84),
+    ]);
+}
+
+#[test]
+fn delete_super_property_evaluates_key_before_throwing() {
+    run_test_actions([
+        TestAction::run(indoc! {r#"
+            let sideEffect = 0;
+            class Base {}
+            class Derived extends Base {
+                test() { delete super[sideEffect = 1]; }
+            }
+        "#}),
+        TestAction::assert_native_error(
+            "new Derived().test()",
+            JsNativeErrorKind::Reference,
+            "cannot delete a property of `super`",
+        ),
+        TestAction::assert_eq("sideEffect", 1),
     ]);
 }

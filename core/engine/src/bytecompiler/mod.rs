@@ -1713,7 +1713,16 @@ impl<'ctx> ByteCompiler<'ctx> {
                         self.register_allocator.dealloc(key);
                     }
                 },
-                PropertyAccess::Super(_) => self.bytecode.emit_delete_super_throw(),
+                PropertyAccess::Super(access) => {
+                    // The property key is evaluated for its side effects before the
+                    // `ReferenceError` is thrown.
+                    if let PropertyAccessField::Expr(expr) = access.field() {
+                        let key = self.register_allocator.alloc();
+                        self.compile_expr(expr, &key);
+                        self.register_allocator.dealloc(key);
+                    }
+                    self.bytecode.emit_delete_super_throw();
+                }
                 PropertyAccess::Private(_) => {
                     unreachable!("deleting private properties should always throw early errors.")
                 }
