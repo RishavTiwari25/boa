@@ -132,11 +132,17 @@ fn read_harness_dir(
             continue;
         }
 
+        // Tests reference includes with forward slashes (e.g. `sm/non262-shell.js`), so the key
+        // must not depend on the platform's path separator.
         let key = entry_path
             .strip_prefix(harness_root)
-            .wrap_err("invalid harness file path")?;
+            .wrap_err("invalid harness file path")?
+            .components()
+            .map(|component| component.as_os_str().to_string_lossy())
+            .collect::<Vec<_>>()
+            .join("/");
 
-        includes.insert(key.to_string_lossy().into(), read_harness_file(entry_path)?);
+        includes.insert(key.into(), read_harness_file(entry_path)?);
     }
 
     Ok(())
