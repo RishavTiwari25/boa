@@ -439,3 +439,23 @@ fn object_prototype_proto_accessor_properties() {
         TestAction::assert_eq("desc.set.name", js_str!("set __proto__")),
     ]);
 }
+
+#[test]
+fn builtin_accessor_descriptors_have_get_and_set() {
+    run_test_actions([
+        TestAction::run(indoc! {r#"
+            let species = Object.getOwnPropertyDescriptor(Array, Symbol.species);
+            let flags = Object.getOwnPropertyDescriptor(RegExp.prototype, 'flags');
+        "#}),
+        TestAction::assert_eq(
+            "Object.keys(species).join()",
+            js_str!("get,set,enumerable,configurable"),
+        ),
+        TestAction::assert_eq("species.set", JsValue::undefined()),
+        TestAction::assert_eq(
+            "Object.keys(flags).join()",
+            js_str!("get,set,enumerable,configurable"),
+        ),
+        TestAction::assert_eq("flags.set", JsValue::undefined()),
+    ]);
+}

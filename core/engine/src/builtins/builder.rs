@@ -269,8 +269,9 @@ impl BuiltInConstructorWithPrototype<'_> {
     {
         let mut attributes = SlotAttributes::from_bits_truncate(attribute.bits());
         debug_assert!(!attributes.contains(SlotAttributes::WRITABLE));
-        attributes.set(SlotAttributes::GET, get.is_some());
-        attributes.set(SlotAttributes::SET, set.is_some());
+        // An accessor property always has both a [[Get]] and a [[Set]] field, even when one
+        // of them is `undefined`, so that `Object.getOwnPropertyDescriptor` reports both.
+        attributes.insert(SlotAttributes::GET | SlotAttributes::SET);
 
         let key = key.into();
 
@@ -349,8 +350,9 @@ impl BuiltInConstructorWithPrototype<'_> {
     {
         let mut attributes = SlotAttributes::from_bits_truncate(attribute.bits());
         debug_assert!(!attributes.contains(SlotAttributes::WRITABLE));
-        attributes.set(SlotAttributes::GET, get.is_some());
-        attributes.set(SlotAttributes::SET, set.is_some());
+        // An accessor property always has both a [[Get]] and a [[Set]] field, even when one
+        // of them is `undefined`, so that `Object.getOwnPropertyDescriptor` reports both.
+        attributes.insert(SlotAttributes::GET | SlotAttributes::SET);
 
         let key = key.into();
 
@@ -676,17 +678,13 @@ impl<T> BuiltInBuilder<'_, T> {
     where
         K: Into<PropertyKey>,
     {
-        let mut property = PropertyDescriptor::builder()
+        // An accessor property always has both a [[Get]] and a [[Set]] field, even when one
+        // of them is `undefined`, so that `Object.getOwnPropertyDescriptor` reports both.
+        let property = PropertyDescriptor::builder()
+            .get(get.map(JsValue::new).unwrap_or_default())
+            .set(set.map(JsValue::new).unwrap_or_default())
             .enumerable(attribute.enumerable())
             .configurable(attribute.configurable());
-
-        if let Some(get) = get {
-            property = property.get(get);
-        }
-
-        if let Some(set) = set {
-            property = property.set(set);
-        }
 
         let key = key.into();
 
